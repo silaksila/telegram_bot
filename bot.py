@@ -26,11 +26,11 @@ def help(update: Update, context: CallbackContext):
 
 
 def crypto(update: Update, context: CallbackContext):
-    with open("crypto.json") as f:
+    with open("database.json") as f:
         data = json.load(f)
-    if data['crypto'] == 'None':
         update.message.reply_text(
             "Your crypto profile isn't set up, do you wish to set it up right now ?Y/N")
+        print(update.message.from_user.id)
 
 
 def unknown(update: Update, context: CallbackContext):
