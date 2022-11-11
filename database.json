@@ -1,21 +1,11 @@
 {
-    "5052059958": {
         "crypto": {
-            "setup": false,
+            "setup": true,
             "coins":{
+                "BTC": [0.0365243, 17329.54]
             },
-            "notifications": null
+            "notifications": 1
         },
-        "state": 0
-    }
-
-
-
-
-
-
-
-
-
+        "menu": 0
 
 }
