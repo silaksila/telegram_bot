@@ -1,11 +1,1 @@
-{
-        "crypto": {
-            "setup": true,
-            "coins":{
-                "BTC": [0.0365243, 17329.54]
-            },
-            "notifications": 1
-        },
-        "menu": 0
-
-}
+{"crypto": {"setup": true, "coins": {"BTC": [0.0365243, 16782.92], "ETH": [0.43, 1260.06]}, "notifications": 1}, "menu": 0}
