@@ -1,9 +1,8 @@
 import logging
-import threading
 import requests
 import json
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, ConversationHandler, MessageHandler
+from telegram import Update, Message
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, ConversationHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 
 logging.basicConfig(
@@ -63,7 +62,7 @@ async def crypto(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id, text=f"*Your crypto profile:*\n ", parse_mode=ParseMode.MARKDOWN_V2)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=crypto_profile_string.replace(",", " ").replace(".", ","))
     else:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your crypto profile isn't set up, do you wish to set it up right now ?Y/N")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your crypto profile isn't set up, to set it up please type")
 
 
 async def crypto_set_up_profile_start():
@@ -86,6 +85,25 @@ set_up_crypto_profile = ConversationHandler(
     states={},  # TODO
     fallbacks=[CommandHandler("stop"), stop_crypto_set_up]
 )
+
+
+class Menu_Filter(filters.MessageFilter):
+    """Custom filter
+    return True if it is currently desired menu state
+    menu states:
+    0- base menu
+    1- in crypto menu
+    2-TODO
+    3-TODO
+    ...
+    """
+
+    def __init__(self, menu: int):
+        self.menu = menu
+
+    def filter(self):
+        """ if menu from database == desired menu"""
+        return menu == self.menu
 
 
 if __name__ == '__main__':
