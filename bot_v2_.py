@@ -10,26 +10,71 @@ logging.basicConfig(
     level=logging.INFO
 )
 token = "5788908830:AAGew0qIRF3l3TxR57Lcf4egiwbBU1XuBdo"
+key = "https://api.binance.com/api/v3/ticker/price?symbol="
 
 with open("database.json") as f:
     data = json.load(f)
+data["menu"] = 0  # !temporary
+menu_state = data["menu"]
 
-key = "https://api.binance.com/api/v3/ticker/price?symbol="
 
+class Menu_Filter(filters.MessageFilter):
+    """Custom filter
+    return True if it is currently desired menu state
+    menu states:
+    0- base menu
+    1- in crypto menu
+    2-TODO
+    3-TODO
+    ...
+    """
 
-menu = data["menu"]
+    def __init__(self, command: str):
+        super().__init__()
+
+        self.command = command
+        self.menu_commands = [
+            ["/start", "/crypto", "/stop",  "/help", "/menu"],
+            ["/profile", "/back", "/crypto", "/help", "/menu"],
+            ["/edit", "/back", "/help", "/menu"]
+        ]
+        with open("database.json") as f:
+            self.menu_state = json.load(f)["menu"]
+
+    def filter(self, message: Message) -> bool:
+        """return True if the command is corresponding to the menu user is currently in"""
+        if message.text == self.command:
+            if message.text in self.menu_commands[menu_state]:
+                return True
+        return False
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text="Hello, please type /crypto to show your crypto")
+                                   text="Hello, please type /help to show all commands")
 
 
-async def stop(bot, update):
-    await application.stop()
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text="*Commands:* ", parse_mode=ParseMode.MARKDOWN_V2)
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text="/crypto - show your crypto profile \n/menu - go back to the menu")
+
+
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global menu_state
+    menu_state = 0
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Main menu")
+
+
+async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text="Unknown command, type /help to show all commands")
 
 
 async def crypto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global menu_state
+    menu_state = 1
     # get data from database,
     crypto = data["crypto"]["coins"]
     crypto_amounts = list(crypto.values())
@@ -62,7 +107,13 @@ async def crypto(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id, text=f"*Your crypto profile:*\n ", parse_mode=ParseMode.MARKDOWN_V2)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=crypto_profile_string.replace(",", " ").replace(".", ","))
     else:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your crypto profile isn't set up, to set it up please type")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your crypto profile isn't set up, to set it up please type /profile")
+
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="To return to the main menu please type /menu\nTo edit your crypto profile type /profile ")
+
+
+async def edit_crypto_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pass
 
 
 async def crypto_set_up_profile_start():
@@ -76,41 +127,29 @@ async def crypto_set_up_profile_not():
 async def stop_crypto_set_up():
     pass
 
-set_up_crypto_profile = ConversationHandler(
-    entry_points=[
-        MessageHandler("N", crypto_set_up_profile_not),
-        MessageHandler("n", crypto_set_up_profile_not),
-        MessageHandler("Y", crypto_set_up_profile_start),
-        MessageHandler("y", crypto_set_up_profile_start)],
-    states={},  # TODO
-    fallbacks=[CommandHandler("stop"), stop_crypto_set_up]
-)
+# crypto_profile = ConversationHandler(
+ #   entry_points=[MessageHandler(Menu_Filter(
+  #      command="/profile"), edit_crypto_profile)],
+   # states={},  # TODO
+    # fallbacks=[CommandHandler("stop"), stop_crypto_set_up])
 
 
-class Menu_Filter(filters.MessageFilter):
-    """Custom filter
-    return True if it is currently desired menu state
-    menu states:
-    0- base menu
-    1- in crypto menu
-    2-TODO
-    3-TODO
-    ...
-    """
+def main():
+    application = ApplicationBuilder().token(token).build()
+    application.add_handler(MessageHandler(
+        Menu_Filter(command="/start"), start))
+    application.add_handler(MessageHandler(
+        Menu_Filter(command="/crypto"), crypto))
+    application.add_handler(MessageHandler(
+        Menu_Filter(command="/help"), help))
+    application.add_handler(MessageHandler(
+        Menu_Filter(command="/menu"), menu))
 
-    def __init__(self, menu: int):
-        self.menu = menu
+    application.add_handler(MessageHandler(
+        filters.MessageFilter, unknown_command))
 
-    def filter(self):
-        """ if menu from database == desired menu"""
-        return menu == self.menu
+    application.run_polling()
 
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token(token).build()
-
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('crypto', crypto))
-    application.add_handler(CommandHandler('stop', stop))
-
-    application.run_polling()
+    main()
