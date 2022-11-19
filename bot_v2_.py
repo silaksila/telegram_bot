@@ -140,8 +140,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if notification != 0:
         intervals = [86400, 21600, 3600, 1800,
                      900, 450, 30]  # intervals in seconds
+        now = datetime.datetime.now()
+        year, month, day, hour, minute, _, _, _, _ = now.timetuple()
+        if notification == 1:
+            day += 1
+            hour = 6
+        date = datetime.datetime(2022, 11, 19, 5, 18)
         context.job_queue.run_repeating(
-            crypto_job, interval=intervals[6], first=datetime.datetime(2022, 11, 19, 5, 18), chat_id=chat_id, name=str(chat_id))  # ! edit time
+            crypto_job, interval=intervals[6], first=data, chat_id=chat_id, name=str(chat_id))  # ! edit time
 
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text="Hello, please type /help to show all commands")
