@@ -135,6 +135,7 @@ def reload_database():
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # TODO
     chat_id = update.effective_message.chat_id
     notification = data["crypto"]["notification"]
     if notification != 0:
@@ -145,9 +146,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if notification == 1:
             day += 1
             hour = 6
-        date = datetime.datetime(2022, 11, 19, 5, 18)
+        date = datetime.datetime(2022, 11, 9, 22)
         context.job_queue.run_repeating(
-            crypto_job, interval=intervals[6], first=data, chat_id=chat_id, name=str(chat_id))  # ! edit time
+            crypto_job, interval=intervals[2], first=date, chat_id=chat_id, name=str(chat_id))  # ! edit time
 
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text="Hello, please type /help to show all commands")
