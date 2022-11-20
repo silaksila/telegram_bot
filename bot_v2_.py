@@ -4,7 +4,8 @@ import json
 import re
 import datetime
 from telegram import Update, Message, ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, ConversationHandler, MessageHandler, filters, CallbackContext
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, ConversationHandler, MessageHandler, filters, \
+    CallbackContext
 from telegram.constants import ParseMode
 
 logging.basicConfig(
@@ -14,11 +15,11 @@ logging.basicConfig(
 token = "5788908830:AAGew0qIRF3l3TxR57Lcf4egiwbBU1XuBdo"
 key = "https://api.binance.com/api/v3/ticker/price?symbol="
 
-
 # TODO create reload func for database
 # TODO every x hour reply with crypto
+# TODO create unique id for every user
 menu_state = 0  # !temporary
-
+start_func_run = False
 
 class Menu_Filter(filters.MessageFilter):
     """Custom filter
@@ -36,7 +37,7 @@ class Menu_Filter(filters.MessageFilter):
 
         self.command = command
         self.menu_commands = [
-            ["/start", "/crypto", "/stop",  "/help", "/menu"],
+            ["/start", "/crypto", "/stop", "/help", "/menu"],
             ["/profile", "/back", "/crypto", "/help", "/menu"],
             ["/edit", "/back", "/help", "/menu"]
         ]
@@ -57,16 +58,16 @@ class Crypto_profile_conversation():
     def __init__(self) -> None:
         self.SHOW_PROFILE, self.COINS, self.NOTIFICATION = range(
             3)
-        self.notification = ["No notification", "Everyday", "Every 6 hours", "Every 3 hours",
-                             "Every hour", "Every half hour", "Every 15 minutes"]
+        self.notification = ["No notification", "Everyday", "Every 12 hours", "Every 6 hours",
+                             "Every 3 hours", "Every hour", "Every half hour", "Every 15 minutes"]
 
         self.empty_data_base = {"crypto": {
             "setup": False, "coins": {}, "notifications": 0}, "menu": menu_state}
         self.allowed_coins = ["BTC", "ETH", "USDT", "USDC", "BNB", "BUSD", "XRP", "DOGE", "ADA", "MATIC",
-                              "DOT", "DAI", "SHIB", "SQL", "TRX", "LTC", "UNI", "LEO", "AVAX", "WBTC", "LINK", "ATOM", "ETC"]
+                              "DOT", "DAI", "SHIB", "SQL", "TRX", "LTC", "UNI", "LEO", "AVAX", "WBTC", "LINK", "ATOM",
+                              "ETC"]
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        print("Lol")
         curr_notification = self.notification[data["crypto"]["notifications"]]
         reply_keyboard = [["Yes", "No"]]
         d = list(data["crypto"]["coins"])
@@ -74,7 +75,9 @@ class Crypto_profile_conversation():
             txt = f"*Settings:*\nCoins: {d}\nNotifications: {curr_notification}\n\nWant to recreate your profile ?"
         else:
             txt = "Create crypto profile ?"
-        await update.message.reply_text(text=txt, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, input_field_placeholder="Yes or No"))
+        await update.message.reply_text(text=txt, parse_mode=ParseMode.MARKDOWN_V2,
+                                        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True,
+                                                                         input_field_placeholder="Yes or No"))
         return self.SHOW_PROFILE
 
     async def start_edit(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -104,21 +107,22 @@ class Crypto_profile_conversation():
     async def coins_done(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         strg = ""
         reply_keyboard = [
-            [str(i+1)+"." for i in range(len(self.notification))]]
+            [str(i + 1) + "." for i in range(len(self.notification))]]
         for inx, notif in enumerate(self.notification):
-            strg += f"{inx+1}. {notif}\n"
+            strg += f"{inx + 1}. {notif}\n"
         await update.message.reply_text("Done")
-        await update.message.reply_text(text="How often do you wish to receive notification ?", reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+        await update.message.reply_text(text="How often do you wish to receive notification ?",
+                                        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
         await update.message.reply_text(text=strg)
         return self.NOTIFICATION
 
     async def get_notifications(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        self.empty_data_base["crypto"]["notification"] = int(
-            update.message.text[0])-1
+        self.empty_data_base["crypto"]["notifications"] = int(
+            update.message.text[0]) - 1
         self.empty_data_base["crypto"]["setup"] = True
         with open("database.json", "w") as f:
             json.dump(self.empty_data_base, f)
-        await update.message.reply_text(text=f"Notification:{self.notification[int(update.message.text[0])-1]}")
+        await update.message.reply_text(text=f"Notification: {self.notification[int(update.message.text[0]) - 1]}")
         await update.message.reply_text(text="Your crypto profile was successfully created")
         return ConversationHandler.END
 
@@ -127,7 +131,7 @@ class Crypto_profile_conversation():
         return ConversationHandler.END
 
 
-def reload_database():
+def reload_database(user_id= None):
     global menu_state, data
     with open("database.json") as f:
         data = json.load(f)
@@ -135,23 +139,70 @@ def reload_database():
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # TODO
-    chat_id = update.effective_message.chat_id
-    notification = data["crypto"]["notification"]
-    if notification != 0:
-        intervals = [86400, 21600, 3600, 1800,
-                     900, 450, 30]  # intervals in seconds
-        now = datetime.datetime.now()
-        year, month, day, hour, minute, _, _, _, _ = now.timetuple()
-        if notification == 1:
-            day += 1
-            hour = 6
-        date = datetime.datetime(2022, 11, 9, 22)
-        context.job_queue.run_repeating(
-            crypto_job, interval=intervals[2], first=date, chat_id=chat_id, name=str(chat_id))  # ! edit time
+    global start_func_run
+    if not start_func_run:
+        chat_id = update.effective_message.chat_id
+        notification = data["crypto"]["notifications"]
+        if notification != 0:
+            # intervals 24hours, 12hours, 6hours,3 hours, 1 hour, half hour, 15 minutes
+            intervals = [86400, 21600, 10800, 3600, 1800, 900, 450, 30]
+            curr_time = datetime.datetime.now()  # get current time
+            curr_time = curr_time
+            # TODO redo this if else :
+            # every 24 hours
+            if notification == 1:
+                first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=6)
+            # every 12 hours
+            elif notification == 2:
+                if curr_time.hour > 12:
+                    hour = 0
+                else:
+                    hour = 12
+                first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=hour)
+            # every 6 hours
+            elif notification == 3:
+                if curr_time.hour > 18:
+                    hour = 0
+                else:
+                    hour = ((curr_time.hour // 6) + 1) * 6
+                first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=hour)
+            # every 3 hours
+            elif notification == 4:
+                if curr_time.hour > 21:
+                    hour = 0
+                else:
+                    hour = ((curr_time.hour // 3) + 1) * 3
+                first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=hour)
+            # every hour
+            elif notification == 5:
+                first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=curr_time.hour) + datetime.timedelta(
+                    hours=1)
 
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text="Hello, please type /help to show all commands")
+            # every 30 minutes
+            elif notification == 6:
+                if curr_time.minute > 30:
+                    first_time = curr_time.replace(second=0, microsecond=0, minute=0,
+                                                   hour=curr_time.hour) + datetime.timedelta(
+                        hours=1)
+                else:
+                    first_time = curr_time.replace(second=0, microsecond=0, minute=30, hour=curr_time.hour)
+
+            # every 15 minutes
+            else:
+                if curr_time.minute > 45:
+                    first_time = curr_time.replace(second=0, microsecond=0, minute=0,
+                                                   hour=curr_time.hour) + datetime.timedelta(hours=1)
+                else:
+                    minutes = ((curr_time.minute // 15) + 1) * 15
+                    first_time = curr_time.replace(second=0, microsecond=0, minute=minutes, hour=curr_time.hour)
+
+            print(first_time)
+            context.job_queue.run_repeating(
+                crypto_job, interval=intervals[notification-1], first=first_time, chat_id=chat_id, name=str(chat_id))
+
+        start_func_run= True
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text="Hello, please type /help to show all commands")
 
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -164,7 +215,8 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global menu_state
     menu_state = 0
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Main menu")
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text="Main menu\nTo show commands type /help")
 
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -186,7 +238,7 @@ async def crypto_job(context: ContextTypes.DEFAULT_TYPE):
         crypto_names = list(crypto.keys())
 
         # get crypto price from binance api
-        urls = [key+name+"USDT" for name in crypto_names]
+        urls = [key + name + "USDT" for name in crypto_names]
         prices = [requests.get(url).json() for url in urls]
 
         crypto_profile_string = ""
@@ -197,12 +249,12 @@ async def crypto_job(context: ContextTypes.DEFAULT_TYPE):
             if old_price == None:
                 old_price = curr_price
             difference_to_old_price = (
-                (curr_price/old_price)-1)*100
+                                              (curr_price / old_price) - 1) * 100
             curr_state_string += (
                 f"{name} : {curr_price:,.2f} $  {difference_to_old_price:+.2f} %\n")
 
             crypto_profile_string += (
-                f"{name} : {amount*curr_price:.2f}. $ \n")
+                f"{name} : {amount * curr_price:.2f}. $ \n")
             data["crypto"]["coins"][name][1] = curr_price
         text = f"*Current state:* \n{curr_state_string}\n*Your crypto profile:*\n{crypto_profile_string} ".replace(
             ",", " ").replace(".", ",").replace("+", "\\+").replace("-", "\\-")  # string escaping
@@ -219,14 +271,15 @@ async def crypto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # get data from database,
     crypto = data["crypto"]["coins"]
     if not crypto:
-        await context.bot.send_message(update.effective_chat.id, text="You dont have any coins added, to add coins type /profile")
+        await context.bot.send_message(update.effective_chat.id,
+                                       text="You dont have any coins added, to add coins type /profile")
     else:
         crypto_amounts = list(crypto.values())
         crypto_names = list(crypto.keys())
 
     if data["crypto"]["setup"]:
         # get crypto price from binance api
-        urls = [key+name+"USDT" for name in crypto_names]
+        urls = [key + name + "USDT" for name in crypto_names]
         prices = [requests.get(url).json() for url in urls]
 
         crypto_profile_string = ""
@@ -237,21 +290,23 @@ async def crypto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if old_price == None:
                 old_price = curr_price
             difference_to_old_price = (
-                (curr_price/old_price)-1)*100
+                                              (curr_price / old_price) - 1) * 100
             curr_state_string += (
                 f"{name} : {curr_price:,.2f} $  {difference_to_old_price:+.2f} %\n")
 
             crypto_profile_string += (
-                f"{name} : {amount*curr_price:.2f}. $ \n")
+                f"{name} : {amount * curr_price:.2f}. $ \n")
             data["crypto"]["coins"][name][1] = curr_price
 
         text = f"*Current state:* \n{curr_state_string}\n*Your crypto profile:*\n{crypto_profile_string} ".replace(
             ",", " ").replace(".", ",").replace("+", "\\+").replace("-", "\\-")  # string escaping
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
     else:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Your crypto profile isn't set up, to set it up please type /profile")
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text="Your crypto profile isn't set up, to set it up please type /profile")
 
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="To return to the main menu please type /menu\nTo edit your crypto profile type /profile ")
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text="To return to the main menu please type /menu\nTo edit your crypto profile type /profile ")
 
     with open("database.json", "w") as file:  # write new price values to file
         json.dump(data, file)
@@ -262,11 +317,14 @@ crypto_profile_conversation_handler = ConversationHandler(
     entry_points=[MessageHandler(Menu_Filter(
         command="/profile"), crypto_profile_class.start)],
     states={
-        crypto_profile_class.SHOW_PROFILE: [MessageHandler(filters.Text(["Yes"]), crypto_profile_class.start_edit), MessageHandler(filters.Text(["No"]), crypto_profile_class.stop_set_up)],
+        crypto_profile_class.SHOW_PROFILE: [MessageHandler(filters.Text(["Yes"]), crypto_profile_class.start_edit),
+                                            MessageHandler(filters.Text(["No"]), crypto_profile_class.stop_set_up)],
         crypto_profile_class.COINS: [MessageHandler(
-            ~filters.Text(["Done", "done", "/skip"]), crypto_profile_class.coins_input), MessageHandler(filters.Text(["Done", "done", "skip"]), crypto_profile_class.coins_done)],
+            ~filters.Text(["Done", "done", "/skip"]), crypto_profile_class.coins_input),
+            MessageHandler(filters.Text(["Done", "done", "skip"]), crypto_profile_class.coins_done)],
         crypto_profile_class.NOTIFICATION: [MessageHandler(filters.Text(
-            [str(i+1)+"." for i in range(len(crypto_profile_class.notification))]), crypto_profile_class.get_notifications)]
+            [str(i + 1) + "." for i in range(len(crypto_profile_class.notification))]),
+            crypto_profile_class.get_notifications)]
     },  # TODO
     fallbacks=[CommandHandler("stop", crypto_profile_class.stop_set_up)])
 
