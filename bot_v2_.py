@@ -17,9 +17,10 @@ key = "https://api.binance.com/api/v3/ticker/price?symbol="
 
 # TODO create reload func for database
 # TODO every x hour reply with crypto
-# TODO create unique id for every user
+# TODO create unique id for every user in database
 menu_state = 0  # !temporary
-start_func_run = False
+run_job = False
+
 
 class Menu_Filter(filters.MessageFilter):
     """Custom filter
@@ -122,7 +123,8 @@ class Crypto_profile_conversation():
         self.empty_data_base["crypto"]["setup"] = True
         with open("database.json", "w") as f:
             json.dump(self.empty_data_base, f)
-        await update.message.reply_text(text=f"Notification: {self.notification[int(update.message.text[0]) - 1]}")
+        await update.message.reply_text(text=f"Notification: {self.notification[int(update.message.text[0]) - 1]}",
+                                        reply_markup=ReplyKeyboardRemove())
         await update.message.reply_text(text="Your crypto profile was successfully created")
         return ConversationHandler.END
 
@@ -131,7 +133,7 @@ class Crypto_profile_conversation():
         return ConversationHandler.END
 
 
-def reload_database(user_id= None):
+def reload_database(user_id=None):
     global menu_state, data
     with open("database.json") as f:
         data = json.load(f)
@@ -139,13 +141,13 @@ def reload_database(user_id= None):
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global start_func_run
+    global run_job
     if not start_func_run:
         chat_id = update.effective_message.chat_id
         notification = data["crypto"]["notifications"]
         if notification != 0:
             # intervals 24hours, 12hours, 6hours,3 hours, 1 hour, half hour, 15 minutes
-            intervals = [86400, 21600, 10800, 3600, 1800, 900, 450, 30]
+            intervals = [86400, 43200, 21600, 10800, 3600, 1800, 900, 30]
             curr_time = datetime.datetime.now()  # get current time
             curr_time = curr_time
             # TODO redo this if else :
@@ -175,7 +177,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=hour)
             # every hour
             elif notification == 5:
-                first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=curr_time.hour) + datetime.timedelta(
+                first_time = curr_time.replace(second=0, microsecond=0, minute=0,
+                                               hour=curr_time.hour) + datetime.timedelta(
                     hours=1)
 
             # every 30 minutes
@@ -198,9 +201,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             print(first_time)
             context.job_queue.run_repeating(
-                crypto_job, interval=intervals[notification-1], first=first_time, chat_id=chat_id, name=str(chat_id))
+                crypto_job, interval=intervals[notification - 1], first=first_time, chat_id=chat_id, name=str(chat_id))
 
-        start_func_run= True
+        start_func_run = True
         await context.bot.send_message(chat_id=update.effective_chat.id,
                                        text="Hello, please type /help to show all commands")
 
