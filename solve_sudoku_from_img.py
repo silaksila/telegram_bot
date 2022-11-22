@@ -23,6 +23,7 @@ def get_num_from_img(img):
     s= pytesseract.image_to_string(img, config=custom_config)
     return s
 
+
 img = find_sudoku_grid("img.png")
 s = get_num_from_img(img)
 print(s)
