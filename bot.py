@@ -317,7 +317,7 @@ def load_job(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     job.schedule_removal()
             # add job to queue
             context.job_queue.run_repeating(
-                crypto_job, interval=intervals[notification - 1], first=first_time, chat_id=chat_id, name=str(chat_id))
+                Crypto_profile.crypto_job, interval=intervals[notification - 1], first=first_time, chat_id=chat_id, name=str(chat_id))
 
             run_job = False
 
