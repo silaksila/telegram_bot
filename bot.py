@@ -53,9 +53,9 @@ class Menu_Filter(filters.MessageFilter):
         return False
 
 
-class Crypto_profile_conversation():
+class Crypto_profile():
     global menu_state
-
+    """This is crypto class"""
     def __init__(self) -> None:
         self.SHOW_PROFILE, self.COINS, self.NOTIFICATION = range(
             3)
@@ -137,6 +137,111 @@ class Crypto_profile_conversation():
         await update.message.reply_text(text=f"Your profile wasn't saved")
         return ConversationHandler.END
 
+    def get_crypto_conversation(self):
+        crypto_profile_conversation_handler = ConversationHandler(
+            entry_points=[MessageHandler(Menu_Filter(
+                command="/profile"), self.start)],
+            states={
+                self.SHOW_PROFILE: [MessageHandler(filters.Text(["Yes"]), self.start_edit),
+                                    MessageHandler(filters.Text(["No"]), self.stop_set_up)],
+                self.COINS: [MessageHandler(
+                    ~filters.Text(["Done", "done", "/skip"]), self.coins_input),
+                    MessageHandler(filters.Text(["Done", "done", "skip"]), self.coins_done)],
+                self.NOTIFICATION: [MessageHandler(filters.Text(
+                    [str(i + 1) + "." for i in range(len(self.notification))]),
+                    self.get_notifications)]
+            },  # TODO
+            fallbacks=[CommandHandler("stop", self.stop_set_up)])
+        return crypto_profile_conversation_handler
+
+    async def crypto_job(self, context: ContextTypes.DEFAULT_TYPE):
+        global menu_state, data
+        job = context.job
+        reload_database()
+        menu_state = 1
+        # get data from database,
+        crypto = data["crypto"]["coins"]
+        if not crypto:
+            await context.bot.send_message(job.chat_id,
+                                           text="You dont have any coins added, to add coins type /profile")
+        else:
+            crypto_amounts = list(crypto.values())
+            crypto_names = list(crypto.keys())
+
+            # get crypto price from binance api
+            urls = [key + name + "USDT" for name in crypto_names]
+            prices = [requests.get(url).json() for url in urls]
+
+            crypto_profile_string = ""
+            curr_state_string = ""
+            for name, amount_and_old_price, curr_price in zip(crypto_names, crypto_amounts, prices):
+                curr_price = float(curr_price["price"])
+                amount, old_price = amount_and_old_price
+                if old_price == None:
+                    old_price = curr_price
+                difference_to_old_price = (
+                                                  (curr_price / old_price) - 1) * 100
+                curr_state_string += (
+                    f"{name} : {curr_price:,.2f} $  {difference_to_old_price:+.2f} %\n")
+
+                crypto_profile_string += (
+                    f"{name} : {amount * curr_price:.2f}. $ \n")
+                data["crypto"]["coins"][name][1] = curr_price
+            text = f"*Current state:* \n{curr_state_string}\n*Your crypto profile:*\n{crypto_profile_string} ".replace(
+                ",", " ").replace(".", ",").replace("+", "\\+").replace("-", "\\-")  # string escaping
+            await context.bot.send_message(chat_id=job.chat_id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
+
+            with open("database.json", "w") as file:  # write new price values to file
+                json.dump(data, file)
+
+    async def crypto(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        global menu_state
+        reload_database()
+        menu_state = 1
+        # get data from database,
+        crypto = data["crypto"]["coins"]
+        if not crypto:
+            await context.bot.send_message(update.effective_chat.id,
+                                           text="You dont have any coins added, to add coins type /profile")
+        else:
+            crypto_amounts = list(crypto.values())
+            crypto_names = list(crypto.keys())
+
+        if data["crypto"]["setup"]:
+            # get crypto price from binance api
+            urls = [key + name + "USDT" for name in crypto_names]
+            prices = [requests.get(url).json() for url in urls]
+
+            crypto_profile_string = ""
+            curr_state_string = ""
+            for name, amount_and_old_price, curr_price in zip(crypto_names, crypto_amounts, prices):
+                curr_price = float(curr_price["price"])
+                amount, old_price = amount_and_old_price
+                if old_price == None:
+                    old_price = curr_price
+                difference_to_old_price = (
+                                                  (curr_price / old_price) - 1) * 100
+                curr_state_string += (
+                    f"{name} : {curr_price:,.2f} $  {difference_to_old_price:+.2f} %\n")
+
+                crypto_profile_string += (
+                    f"{name} : {amount * curr_price:.2f}. $ \n")
+                data["crypto"]["coins"][name][1] = curr_price
+
+            text = f"*Current state:* \n{curr_state_string}\n*Your crypto profile:*\n{crypto_profile_string} ".replace(
+                ",", " ").replace(".", ",").replace("+", "\\+").replace("-", "\\-")  # string escaping
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=text,
+                                           parse_mode=ParseMode.MARKDOWN_V2)
+        else:
+            await context.bot.send_message(chat_id=update.effective_chat.id,
+                                           text="Your crypto profile isn't set up, to set it up please type /profile")
+
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text="To return to the main menu please type /menu\nTo edit your crypto profile type /profile ")
+
+        with open("database.json", "w") as file:  # write new price values to file
+            json.dump(data, file)
+
 
 def reload_database(user_id=None):
     global menu_state, data
@@ -144,7 +249,8 @@ def reload_database(user_id=None):
         data = json.load(f)
     menu_state = data["menu"]
 
-def load_job( update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+def load_job(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global run_job
     if run_job:
         chat_id = update.effective_message.chat_id
@@ -215,6 +321,7 @@ def load_job( update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             run_job = False
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     load_job(update, context)
     await context.bot.send_message(chat_id=update.effective_chat.id,
@@ -240,109 +347,7 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                    text="Unknown command, type /help to show all commands")
 
 
-async def crypto_job(context: ContextTypes.DEFAULT_TYPE):
-    global menu_state
-    job = context.job
-    reload_database()
-    menu_state = 1
-    # get data from database,
-    crypto = data["crypto"]["coins"]
-    if not crypto:
-        await context.bot.send_message(job.chat_id, text="You dont have any coins added, to add coins type /profile")
-    else:
-        crypto_amounts = list(crypto.values())
-        crypto_names = list(crypto.keys())
-
-        # get crypto price from binance api
-        urls = [key + name + "USDT" for name in crypto_names]
-        prices = [requests.get(url).json() for url in urls]
-
-        crypto_profile_string = ""
-        curr_state_string = ""
-        for name, amount_and_old_price, curr_price in zip(crypto_names, crypto_amounts, prices):
-            curr_price = float(curr_price["price"])
-            amount, old_price = amount_and_old_price
-            if old_price == None:
-                old_price = curr_price
-            difference_to_old_price = (
-                                              (curr_price / old_price) - 1) * 100
-            curr_state_string += (
-                f"{name} : {curr_price:,.2f} $  {difference_to_old_price:+.2f} %\n")
-
-            crypto_profile_string += (
-                f"{name} : {amount * curr_price:.2f}. $ \n")
-            data["crypto"]["coins"][name][1] = curr_price
-        text = f"*Current state:* \n{curr_state_string}\n*Your crypto profile:*\n{crypto_profile_string} ".replace(
-            ",", " ").replace(".", ",").replace("+", "\\+").replace("-", "\\-")  # string escaping
-        await context.bot.send_message(chat_id=job.chat_id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
-
-        with open("database.json", "w") as file:  # write new price values to file
-            json.dump(data, file)
-
-
-async def crypto(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global menu_state
-    reload_database()
-    menu_state = 1
-    # get data from database,
-    crypto = data["crypto"]["coins"]
-    if not crypto:
-        await context.bot.send_message(update.effective_chat.id,
-                                       text="You dont have any coins added, to add coins type /profile")
-    else:
-        crypto_amounts = list(crypto.values())
-        crypto_names = list(crypto.keys())
-
-    if data["crypto"]["setup"]:
-        # get crypto price from binance api
-        urls = [key + name + "USDT" for name in crypto_names]
-        prices = [requests.get(url).json() for url in urls]
-
-        crypto_profile_string = ""
-        curr_state_string = ""
-        for name, amount_and_old_price, curr_price in zip(crypto_names, crypto_amounts, prices):
-            curr_price = float(curr_price["price"])
-            amount, old_price = amount_and_old_price
-            if old_price == None:
-                old_price = curr_price
-            difference_to_old_price = (
-                                              (curr_price / old_price) - 1) * 100
-            curr_state_string += (
-                f"{name} : {curr_price:,.2f} $  {difference_to_old_price:+.2f} %\n")
-
-            crypto_profile_string += (
-                f"{name} : {amount * curr_price:.2f}. $ \n")
-            data["crypto"]["coins"][name][1] = curr_price
-
-        text = f"*Current state:* \n{curr_state_string}\n*Your crypto profile:*\n{crypto_profile_string} ".replace(
-            ",", " ").replace(".", ",").replace("+", "\\+").replace("-", "\\-")  # string escaping
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
-    else:
-        await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text="Your crypto profile isn't set up, to set it up please type /profile")
-
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text="To return to the main menu please type /menu\nTo edit your crypto profile type /profile ")
-
-    with open("database.json", "w") as file:  # write new price values to file
-        json.dump(data, file)
-
-
-crypto_profile_class = Crypto_profile_conversation()
-crypto_profile_conversation_handler = ConversationHandler(
-    entry_points=[MessageHandler(Menu_Filter(
-        command="/profile"), crypto_profile_class.start)],
-    states={
-        crypto_profile_class.SHOW_PROFILE: [MessageHandler(filters.Text(["Yes"]), crypto_profile_class.start_edit),
-                                            MessageHandler(filters.Text(["No"]), crypto_profile_class.stop_set_up)],
-        crypto_profile_class.COINS: [MessageHandler(
-            ~filters.Text(["Done", "done", "/skip"]), crypto_profile_class.coins_input),
-            MessageHandler(filters.Text(["Done", "done", "skip"]), crypto_profile_class.coins_done)],
-        crypto_profile_class.NOTIFICATION: [MessageHandler(filters.Text(
-            [str(i + 1) + "." for i in range(len(crypto_profile_class.notification))]),
-            crypto_profile_class.get_notifications)]
-    },  # TODO
-    fallbacks=[CommandHandler("stop", crypto_profile_class.stop_set_up)])
+crypto = Crypto_profile()
 
 
 def main():
@@ -352,14 +357,14 @@ def main():
     application.add_handler(MessageHandler(
         Menu_Filter(command="/start"), start))
     application.add_handler(MessageHandler(
-        Menu_Filter(command="/crypto"), crypto))
+        Menu_Filter(command="/crypto"), crypto.crypto))
     application.add_handler(MessageHandler(
         Menu_Filter(command="/help"), help))
     application.add_handler(MessageHandler(
         Menu_Filter(command="/menu"), menu))
     application.add_handler(MessageHandler(
         filters.MessageFilter(), unknown_command))
-    application.add_handler(crypto_profile_conversation_handler)
+    application.add_handler(crypto.get_crypto_conversation())
 
     application.run_polling()
 
