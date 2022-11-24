@@ -27,6 +27,7 @@ class Menu_Filter(filters.MessageFilter):
 
     def filter(self, message: Message) -> bool:
         """return True if the command is corresponding to the menu user is currently in"""
+        self.menu_state, self._ = reload_database()
         if message.text == self.command:
             if message.text in self.menu_commands[self.menu_state]:
                 return True
