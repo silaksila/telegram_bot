@@ -26,7 +26,7 @@ class Crypto:
                               "DOT", "DAI", "SHIB", "SQL", "TRX", "LTC", "UNI", "LEO", "AVAX", "WBTC", "LINK", "ATOM",
                               "ETC"]
 
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def start(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
         curr_notification = self.notification[self.data["crypto"]["notifications"]]
         reply_keyboard = [["Yes", "No"]]
         d = list(self.data["crypto"]["coins"])
@@ -39,14 +39,14 @@ class Crypto:
                                                                          input_field_placeholder="Yes or No"))
         return self.SHOW_PROFILE
 
-    async def start_edit(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def start_edit(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text=f"To cancel type /stop")
         await update.message.reply_text(text=f"To skip type /skip")
         await update.message.reply_text(text=f"When you are finished type Done")
         await update.message.reply_text(text=f"Please write your coins and amount: (ETH: 1,8)")
         return self.COINS
 
-    async def coins_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def coins_input(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
         input = update.message.text.replace(",", ".")
         if "." in input:  # if the number is float:
             num = re.findall("\d+\.\d+", input)  # find float number
@@ -63,7 +63,7 @@ class Crypto:
                 self.empty_data_base["crypto"]["coins"][upper] = [num, None]
                 await update.message.reply_text(f"Successfully added {upper}")
 
-    async def coins_done(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def coins_done(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
         strg = ""
         reply_keyboard = [
             [str(i + 1) + "." for i in range(len(self.notification))]]
@@ -90,7 +90,7 @@ class Crypto:
         await update.message.reply_text(text="Your crypto profile was successfully created")
         return ConversationHandler.END
 
-    async def stop_set_up(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def stop_set_up(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text=f"Your profile wasn't saved")
         return ConversationHandler.END
 
@@ -129,12 +129,10 @@ class Crypto:
                 ",", " ").replace(".", ",").replace("+", "\\+").replace("-", "\\-")  # string escaping
             await context.bot.send_message(chat_id=job.chat_id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
 
-            with open("database.json", "w") as file:  # write new price values to file
-                json.dump(self.data, file)
+            save_to_database(self.menu_state, self.data)
 
     async def crypto(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.menu_state, self.data = reload_database()
-        self.menu_state = 1
         # get data from database,
         crypto = self.data["crypto"]["coins"]
         if not crypto:
@@ -176,14 +174,11 @@ class Crypto:
         await context.bot.send_message(chat_id=update.effective_chat.id,
                                        text="To return to the main menu please type /menu\nTo edit your crypto profile type /profile ")
 
-        self.data["menu"] = self.menu_state
-        with open("database.json", "w") as file:  # write new price values to file
-            json.dump(self.data, file)
-
+        save_to_database(self.menu_state, self.data)
     def create_crypto_conversation(self):
         crypto_profile_conversation_handler = ConversationHandler(
             entry_points=[MessageHandler(Menu_Filter(
-                command="/profile", menu_state=self.menu_state), self.start)],
+                command="/profile"), self.start)],
             states={
                 self.SHOW_PROFILE: [
                     MessageHandler(filters.Text(["Yes"]), self.start_edit),

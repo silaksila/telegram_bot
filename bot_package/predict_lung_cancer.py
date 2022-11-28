@@ -99,7 +99,7 @@ class Predict_lung_cancer():
 
     def create_conversation_handler(self) -> ConversationHandler:
         conversation = ConversationHandler(
-            entry_points=[MessageHandler(Menu_Filter(command="/lungcancer", menu_state=self.menu_state), self.start)],
+            entry_points=[MessageHandler(Menu_Filter(command="/lungcancer"), self.start)],
             states=self.conversation_states(),
             fallbacks=[CommandHandler("stop", self.stop)])
         return conversation
