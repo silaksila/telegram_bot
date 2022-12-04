@@ -1,11 +1,11 @@
 import requests
-import json
 import re
 import datetime
+from zoneinfo import ZoneInfo
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, CommandHandler, ConversationHandler, MessageHandler, filters
 from telegram.constants import ParseMode
-from bot_package.menu_filter import Menu_Filter
+from bot_package.menufilter import MenuFilter
 from bot_package.database_operations import reload_database, save_to_database
 
 
@@ -27,6 +27,7 @@ class Crypto:
                               "ETC"]
 
     async def start(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
+        self.menu_state, self.data = reload_database(update.message.chat_id)
         curr_notification = self.notification[self.data["crypto"]["notifications"]]
         reply_keyboard = [["Yes", "No"]]
         d = list(self.data["crypto"]["coins"])
@@ -40,28 +41,28 @@ class Crypto:
         return self.SHOW_PROFILE
 
     async def start_edit(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text(text=f"To cancel type /stop")
-        await update.message.reply_text(text=f"To skip type /skip")
-        await update.message.reply_text(text=f"When you are finished type Done")
-        await update.message.reply_text(text=f"Please write your coins and amount: (ETH: 1,8)")
+        await update.message.reply_text(text=f"To cancel type /stop", disable_notification=True)
+        await update.message.reply_text(text=f"To skip type /skip", disable_notification=True)
+        await update.message.reply_text(text=f"When you are finished type Done", disable_notification=True)
+        await update.message.reply_text(text=f"Please write your coins and amount: (ETH: 1,8)", disable_notification=True)
         return self.COINS
 
     async def coins_input(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
-        input = update.message.text.replace(",", ".")
-        if "." in input:  # if the number is float:
-            num = re.findall("\d+\.\d+", input)  # find float number
+        inp_txt = update.message.text.replace(",", ".")
+        if "." in inp_txt:  # if the number is float:
+            num = re.findall("\d+\.\d+", inp_txt)  # find float number
         else:
-            num = re.findall("\d+", input)  # find int
+            num = re.findall("\d+", inp_txt)  # find int
         if not num:
-            await update.message.reply_text("Please write the number correctly")
+            await update.message.reply_text("Please write the number correctly", disable_notification=True)
         else:
             num = float(num[0])
-            upper = "".join([c for c in input if c.isupper()])
+            upper = "".join([c.upper() for c in inp_txt if c.isalpha()])
             if upper not in self.allowed_coins:
-                await update.message.reply_text("Please write your coin correctly")
+                await update.message.reply_text("Please write your coin correctly", disable_notification=True)
             else:
                 self.empty_data_base["crypto"]["coins"][upper] = [num, None]
-                await update.message.reply_text(f"Successfully added {upper}")
+                await update.message.reply_text(f"Successfully added {upper}", disable_notification=True)
 
     async def coins_done(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
         strg = ""
@@ -69,24 +70,23 @@ class Crypto:
             [str(i + 1) + "." for i in range(len(self.notification))]]
         for inx, notif in enumerate(self.notification):
             strg += f"{inx + 1}. {notif}\n"
-        await update.message.reply_text("Done")
+        await update.message.reply_text("Done", disable_notification=True)
         await update.message.reply_text(text="How often do you wish to receive notification ?",
-                                        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
-        await update.message.reply_text(text=strg)
+                                        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),disable_notification=True)
+        await update.message.reply_text(text=strg, disable_notification=True)
         return self.NOTIFICATION
 
     async def get_notifications(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         self.empty_data_base["crypto"]["notifications"] = int(
             update.message.text[0]) - 1
         self.empty_data_base["crypto"]["setup"] = True
-        with open("database.json", "w") as f:
-            json.dump(self.empty_data_base, f)
+        save_to_database(self.menu_state, self.empty_data_base, update.message.chat_id)
         # this will rerun job
         self.run_job = True
-        self.menu_state, self.data = reload_database()
+        self.menu_state, self.data = reload_database(update.message.chat_id)
         self.load_job(update, context)
         await update.message.reply_text(text=f"Notification: {self.notification[int(update.message.text[0]) - 1]}",
-                                        reply_markup=ReplyKeyboardRemove())
+                                        reply_markup=ReplyKeyboardRemove(), disable_notification=True)
         await update.message.reply_text(text="Your crypto profile was successfully created")
         return ConversationHandler.END
 
@@ -95,8 +95,9 @@ class Crypto:
         return ConversationHandler.END
 
     async def crypto_job(self, context: ContextTypes.DEFAULT_TYPE):
+        """Run everytime crypto report is called from job queue"""
         job = context.job
-        self.menu_state, self.data = reload_database()
+        self.menu_state, self.data = reload_database(context.job.chat_id)
         # get data from database,
         crypto = self.data["crypto"]["coins"]
         if not crypto:
@@ -129,10 +130,10 @@ class Crypto:
                 ",", " ").replace(".", ",").replace("+", "\\+").replace("-", "\\-")  # string escaping
             await context.bot.send_message(chat_id=job.chat_id, text=text, parse_mode=ParseMode.MARKDOWN_V2)
 
-            save_to_database(self.menu_state, self.data)
+            save_to_database(self.menu_state, self.data, job.chat_id)
 
     async def crypto(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        self.menu_state, self.data = reload_database()
+        self.menu_state, self.data = reload_database(update.message.chat_id)
         # get data from database,
         crypto = self.data["crypto"]["coins"]
         if not crypto:
@@ -167,25 +168,23 @@ class Crypto:
                     ",", " ").replace(".", ",").replace("+", "\\+").replace("-", "\\-")  # string escaping
                 await context.bot.send_message(chat_id=update.effective_chat.id, text=text,
                                                parse_mode=ParseMode.MARKDOWN_V2)
-            else:
-                await context.bot.send_message(chat_id=update.effective_chat.id,
-                                               text="Your crypto profile isn't set up, to set it up please type /profile")
 
         await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text="To return to the main menu please type /menu\nTo edit your crypto profile type /profile ")
+                                       text="To return to the main menu please type /menu\nTo edit your crypto profile type /profile ", disable_notification=True)
 
-        save_to_database(self.menu_state, self.data)
+        save_to_database(self.menu_state, self.data, update.message.chat_id)
+
     def create_crypto_conversation(self):
         crypto_profile_conversation_handler = ConversationHandler(
-            entry_points=[MessageHandler(Menu_Filter(
+            entry_points=[MessageHandler(MenuFilter(
                 command="/profile"), self.start)],
             states={
                 self.SHOW_PROFILE: [
                     MessageHandler(filters.Text(["Yes"]), self.start_edit),
                     MessageHandler(filters.Text(["No"]), self.stop_set_up)],
                 self.COINS: [MessageHandler(
-                    ~filters.Text(["Done", "done", "/skip"]), self.coins_input),
-                    MessageHandler(filters.Text(["Done", "done", "skip"]), self.coins_done)],
+                    ~filters.Text(["Done", "done", "DONE", "/skip"]), self.coins_input),
+                    MessageHandler(filters.Text(["Done", "done", "DONE", "/skip"]), self.coins_done)],
                 self.NOTIFICATION: [MessageHandler(filters.Text(
                     [str(i + 1) + "." for i in range(len(self.notification))]),
                     self.get_notifications)]
@@ -200,8 +199,7 @@ class Crypto:
             if notification != 0:
                 # intervals 24hours, 12hours, 6hours,3 hours, 1 hour, half hour, 15 minutes
                 intervals = [86400, 43200, 21600, 10800, 3600, 1800, 900, 30]
-                curr_time = datetime.datetime.now()  # get current time
-                curr_time = curr_time
+                curr_time = datetime.datetime.now(tz= ZoneInfo('Europe/Berlin'))  # get current time
                 # every 24 hours
                 if notification == 1:
                     first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=6)
@@ -261,3 +259,4 @@ class Crypto:
                     name=str(chat_id))
 
                 self.run_job = False
+

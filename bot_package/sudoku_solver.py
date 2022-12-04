@@ -5,7 +5,7 @@ import re
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, ConversationHandler, MessageHandler, filters
 from telegram.constants import ParseMode
-from bot_package.menu_filter import Menu_Filter
+from bot_package.menufilter import MenuFilter
 
 
 class SudokuSolver:
@@ -65,7 +65,7 @@ class SudokuSolver:
 
     def create_conversation_handler(self) -> ConversationHandler:
         conversation = ConversationHandler(
-            entry_points=[MessageHandler(Menu_Filter(command="/sudoku"), self.start)],
+            entry_points=[MessageHandler(MenuFilter(command="/sudoku"), self.start)],
             states={
                 0: [MessageHandler(filters.Text(["1."]), self.photo),
                     MessageHandler(filters.Text(["2."]), self.manually_fill_board)],
