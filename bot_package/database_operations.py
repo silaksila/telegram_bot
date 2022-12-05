@@ -19,10 +19,15 @@ def reload_database(user_id: int = None):
     return menu_state, usr_data
 
 
-def save_to_database(menu_state, usr_data, user_id: int = None):
+def save_to_database(menu_state, usr_data, user_id: int = None, clear_coins_data=False):
     user_id = str(user_id)
     with open("database.json") as f:
         data = json.load(f)
+
+    # remove coins from database
+    if clear_coins_data:
+        data[user_id]['crypto']['coins'] = []
+
     data[user_id] = usr_data
     data[user_id]["menu"] = menu_state
     with open("database.json", "w") as file:  # write new price values to file

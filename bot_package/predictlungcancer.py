@@ -8,11 +8,10 @@ from bot_package.menufilter import MenuFilter
 
 
 class PredictLungCancer:
-    def __init__(self, menu_state):
+    def __init__(self):
         self.i = None
         self.information = list(range(23))
         self.max_value = [100, 2, 10]
-        self.menu_state = menu_state
         self.names = ['Age',
                       'Gender',
                       'Air Pollution',

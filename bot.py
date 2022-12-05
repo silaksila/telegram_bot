@@ -1,22 +1,18 @@
 import logging
-from functools import partial
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 from telegram.constants import ParseMode
 from bot_package.menufilter import MenuFilter
 from bot_package.predictlungcancer import PredictLungCancer
-from bot_package.crypto import reload_database, Crypto
+from bot_package.crypto import Crypto
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
-# TODO create unique id for every user in database
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE, crypto: Crypto):
-    # TODO change when the load function is called
-    crypto.load_job(update, context)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text="Hello, please type /help to show all commands")
 
@@ -42,23 +38,22 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     token = "5788908830:AAGew0qIRF3l3TxR57Lcf4egiwbBU1XuBdo"
-    menu_state, data = reload_database()
-    crypto = Crypto(menu_state, data)
-    lung_cancer = PredictLungCancer(menu_state)
+    crypto = Crypto()
+    predict_lung_cancer = PredictLungCancer()
     application = ApplicationBuilder().token(token).build()
     application.add_handler(MessageHandler(
-        MenuFilter(command="/start"), partial(start, crypto=crypto)))
+        MenuFilter(command="/start"), start))
     application.add_handler(MessageHandler(
         MenuFilter(command="/crypto"), crypto.crypto))
     application.add_handler(MessageHandler(
-        filters.Regex("help"), help))
+        filters.Text(['help', 'Help', 'HELP', '/help', 'h']), help))
     application.add_handler(MessageHandler(
         MenuFilter(command="/menu"), menu))
 
     application.add_handler(MessageHandler(
         filters.MessageFilter(), unknown_command))
     application.add_handler(crypto.create_crypto_conversation())
-    application.add_handler(lung_cancer.create_conversation_handler())
+    application.add_handler(predict_lung_cancer.create_conversation_handler())
 
     application.run_polling()
 
