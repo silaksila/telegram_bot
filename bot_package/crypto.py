@@ -8,7 +8,7 @@ from telegram.constants import ParseMode
 from bot_package.menufilter import MenuFilter
 from bot_package.database_operations import reload_database, save_to_database
 
-if version == '3.7.0':
+if str(version) == '3.7.0':
     from backport.zoneinfo import ZoneInfo
 else:
     from zoneinfo import ZoneInfo
