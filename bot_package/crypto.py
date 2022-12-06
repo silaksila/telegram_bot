@@ -1,12 +1,43 @@
 import requests
 import re
 import datetime
-from zoneinfo import ZoneInfo
+from sys import version
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, CommandHandler, ConversationHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 from bot_package.menufilter import MenuFilter
 from bot_package.database_operations import reload_database, save_to_database
+
+if version == '3.7.0':
+    from backport.zoneinfo import ZoneInfo
+else:
+    from zoneinfo import ZoneInfo
+
+
+def assign_time(curr_time: datetime.datetime, notification: int):
+    """get the closest time depending on notification:
+    1: closest 24 horus
+    2: closest 12 hours
+    3: closest 6 hours
+    4: closest 3 hours
+    5: closest 1 hour
+    6: closest 30 minutes
+    7: closest 15 minutes
+    """
+    intervals = [24, 12, 6, 3, 1, 0.5, 0.25]
+    interval = intervals[notification - 1]
+    if interval >= 1:
+        next_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=0)
+        next_time += datetime.timedelta(hours=interval)
+        while next_time <= curr_time:
+            next_time += datetime.timedelta(hours=interval)
+
+    else:
+        minutes = int(60 * interval)
+        next_time = curr_time.replace(second=0, microsecond=0, minute=minutes, hour=curr_time.hour)
+        while next_time <= curr_time:
+            next_time += datetime.timedelta(minutes=minutes)
+    return next_time
 
 
 class Crypto:
@@ -89,7 +120,7 @@ class Crypto:
         self.empty_data_base["crypto"]["notifications"] = int(
             update.message.text[0]) - 1
         self.empty_data_base["crypto"]["setup"] = True
-        save_to_database(self.menu_state, self.empty_data_base, update.message.chat_id, clear_coins_data= True)
+        save_to_database(self.menu_state, self.empty_data_base, update.message.chat_id, clear_coins_data=True)
         # rerun job
         self.run_job = True
         self.menu_state, self.data = reload_database(update.message.chat_id)
@@ -210,65 +241,17 @@ class Crypto:
             if notification != 0:
                 # intervals 24hours, 12hours, 6hours,3 hours, 1 hour, half hour, 15 minutes
                 intervals = [86400, 43200, 21600, 10800, 3600, 1800, 900, 30]
-                curr_time = datetime.datetime.now(tz=ZoneInfo('Europe/Berlin'))  # get current time
-                # every 24 hours
-                if notification == 1:
-                    first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=6)
-                # every 12 hours
-                elif notification == 2:
-                    if curr_time.hour > 12:
-                        hour = 0
-                    else:
-                        hour = 12
-                    first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=hour)
-                # every 6 hours
-                elif notification == 3:
-                    if curr_time.hour > 18:
-                        hour = 0
-                    else:
-                        hour = ((curr_time.hour // 6) + 1) * 6
-                    if hour == 24:
-                        hour = 0
-                    first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=hour)
-                # every 3 hours
-                elif notification == 4:
-                    if curr_time.hour > 21:
-                        hour = 0
-                    else:
-                        hour = ((curr_time.hour // 3) + 1) * 3
-                    first_time = curr_time.replace(second=0, microsecond=0, minute=0, hour=hour)
-                # every hour
-                elif notification == 5:
-                    first_time = curr_time.replace(second=0, microsecond=0, minute=0,
-                                                   hour=curr_time.hour) + datetime.timedelta(
-                        hours=1)
-
-                # every 30 minutes
-                elif notification == 6:
-                    if curr_time.minute > 30:
-                        first_time = curr_time.replace(second=0, microsecond=0, minute=0,
-                                                       hour=curr_time.hour) + datetime.timedelta(
-                            hours=1)
-                    else:
-                        first_time = curr_time.replace(second=0, microsecond=0, minute=30, hour=curr_time.hour)
-
-                # every 15 minutes
-                else:
-                    if curr_time.minute > 45:
-                        first_time = curr_time.replace(second=0, microsecond=0, minute=0,
-                                                       hour=curr_time.hour) + datetime.timedelta(hours=1)
-                    else:
-                        minutes = ((curr_time.minute // 15) + 1) * 15
-                        first_time = curr_time.replace(second=0, microsecond=0, minute=minutes, hour=curr_time.hour)
-
                 # remove existing job from queue if exits
                 current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
                 if current_jobs:
                     for job in current_jobs:
                         job.schedule_removal()
+
+                curr_time = datetime.datetime.now(tz=ZoneInfo('Europe/Berlin'))  # get current time
+                time = assign_time(curr_time, notification)
                 # add job to queue
                 context.job_queue.run_repeating(
-                    self.crypto_job, interval=intervals[notification - 1], first=first_time, chat_id=chat_id,
+                    self.crypto_job, interval=intervals[notification - 1], first=time, chat_id=chat_id,
                     name=str(chat_id))
 
                 self.run_job = False
