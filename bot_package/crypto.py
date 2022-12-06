@@ -9,7 +9,7 @@ from bot_package.menufilter import MenuFilter
 from bot_package.database_operations import reload_database, save_to_database
 
 if version_info.minor < 9:
-    from backport.zoneinfo import ZoneInfo
+    from backports.zoneinfo import ZoneInfo
 else:
     from zoneinfo import ZoneInfo
 
