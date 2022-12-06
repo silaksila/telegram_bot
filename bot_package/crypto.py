@@ -1,14 +1,14 @@
 import requests
 import re
 import datetime
-from sys import version
+from sys import version_info
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, CommandHandler, ConversationHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 from bot_package.menufilter import MenuFilter
 from bot_package.database_operations import reload_database, save_to_database
 
-if str(version) == '3.7.0':
+if version_info.minor < 9:
     from backport.zoneinfo import ZoneInfo
 else:
     from zoneinfo import ZoneInfo
