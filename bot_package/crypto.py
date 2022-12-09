@@ -242,8 +242,8 @@ class Crypto:
                 # intervals 24hours, 12hours, 6hours,3 hours, 1 hour, half hour, 15 minutes
                 intervals = [86400, 43200, 21600, 10800, 3600, 1800, 900, 30]
                 # remove existing job from queue if exits
-                current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
-                if current_jobs:
+                if context.job_queue:
+                    current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
                     for job in current_jobs:
                         job.schedule_removal()
 
