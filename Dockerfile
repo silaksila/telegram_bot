@@ -1,8 +1,7 @@
 # syntax=docker/dockerfile:1
-# not working
-FROM python:3.11-alpine
+FROM python:3.11
 WORKDIR /code
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 COPY . .
-CMD ["flask", "run"]
+CMD ["python", "bot.py"]

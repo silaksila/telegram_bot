@@ -4,11 +4,15 @@
                   "setup": true,
                   "coins": {
                         "BTC": [
-                              4.0,
-                              17073.04
+                              3.0,
+                              null
+                        ],
+                        "ETH": [
+                              1.49,
+                              null
                         ]
                   },
-                  "notifications": 3
+                  "notifications": 4
             },
             "menu": 1
       },
